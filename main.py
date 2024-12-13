@@ -87,14 +87,14 @@ class ThompsonSampling:
         x = np.concatenate([actions, contexts], axis=1)
         w0 = np.random.multivariate_normal(self.prior_mean, np.diag(self.prior_std))
         result = minimize(
-            lambda w: self.logistic_loss(w, x, np.array(rewards), self.prior_mean, self.prior_std),
+            lambda w: self.logistic_loss(w, x, np.array(rewards), self.prior_mean, (1/self.prior_std)**2),
             w0,
             method='BFGS'
         )
         w_opt = result.x
         self.prior_mean = w_opt
 
-        # Compute Hessian (Fisher Information Matrix)
+        # Compute the updated variance
         n = contexts.shape[0]
         p = np.zeros(n)
         for j in range(n):
@@ -103,12 +103,16 @@ class ThompsonSampling:
             temp = 0
             for j in range(n):
                 temp += (x[j][i] ** 2) * p[j] * (1 - p[j])
-            self.prior_std[i] += temp
+            self.prior_std[i] = np.sqrt(1/((1/self.prior_std[i])**2 + temp))
+
+        # print(self.prior_std)
+        # print(self.prior_mean)
 
 
 class Reward:
     def __init__(self, dim):
-        self.w = np.random.uniform(-1, 1, size=dim)
+
+        self.w = np.random.choice([1, -1], size=dim)
 
     def generate(self, context, action):
         """
@@ -131,7 +135,7 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--T', type=int, default=100, help="number of batches (runs)")
-    parser.add_argument('--n', type=int, default=10, help="batch size")
+    parser.add_argument('--n', type=int, default=5, help="batch size")
     args = parser.parse_args()
 
     T = args.T
@@ -151,5 +155,5 @@ if __name__ == "__main__":
     plt.plot(range(T), average_rewards)
     plt.xlabel('Steps (T)')
     plt.ylabel('Average Reward')
-    plt.title('Average Reward Over Time')
+    plt.title('Average Reward Per batch Over Time')
     plt.savefig('output/average_reward_plot.png')
